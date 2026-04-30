@@ -4,6 +4,8 @@
 export type AnalyticsEvent =
   | 'page_view'
   | 'form_started'
+  | 'form_submitted'
+  | 'verification_sent'
   | 'profile_created'
   | 'matches_found'
   | 'instagram_revealed';
