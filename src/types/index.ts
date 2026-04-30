@@ -2,12 +2,13 @@ import type { Timestamp } from 'firebase/firestore';
 
 export type Gender = 'woman' | 'man' | 'nonbinary' | 'other';
 export type InterestedIn = 'women' | 'men' | 'everyone' | 'friends';
-export type ProfileStatus = 'active' | 'expired' | 'hidden';
+export type ProfileStatus = 'pending_verification' | 'active' | 'expired' | 'hidden';
 export type Vibe = 'coffee' | 'drinks' | 'walk' | 'chat' | 'dating' | 'friends';
 
 export interface LayoverProfile {
   id: string;
-  name: string;
+  userId: string;
+  nickname: string;
   age: number;
   gender: Gender;
   interestedIn: InterestedIn;
@@ -15,6 +16,8 @@ export interface LayoverProfile {
   layoverStart: Timestamp;
   layoverEnd: Timestamp;
   instagram: string;
+  email: string;
+  emailVerified: boolean;
   flightNumber?: string;
   vibe: Vibe[];
   consent: boolean;
@@ -24,9 +27,10 @@ export interface LayoverProfile {
   revealCount: number;
 }
 
-// Form-side type — uses native Date for the datetime-local inputs.
+// Form-side type — collected on /signup, stashed in localStorage between
+// "submit form" and "click email link". No email yet — it's added at /verify.
 export interface ProfileDraft {
-  name: string;
+  nickname: string;
   age: number;
   gender: Gender;
   interestedIn: InterestedIn;

@@ -1,6 +1,7 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import SignupPage from './pages/SignupPage';
+import VerifyPage from './pages/VerifyPage';
 import MatchResultsPage from './pages/MatchResultsPage';
 import Footer from './components/Footer';
 
@@ -12,6 +13,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/signup" element={<SignupPage />} />
+            <Route path="/verify" element={<VerifyPage />} />
             <Route path="/matches" element={<MatchResultsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

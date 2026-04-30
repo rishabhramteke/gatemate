@@ -45,6 +45,10 @@ Steps:
 
 ## 🚦 Make matching actually work (do these now)
 
+- [ ] **Enable Email Link sign-in in Firebase Auth** (after creating the project)
+  - Console → Authentication → *Get started* → *Sign-in method* tab → click **Email/Password** → enable both the toggle AND "Email link (passwordless sign-in)" → Save.
+  - Authentication → *Settings* → *Authorized domains* → ensure `localhost`, `<project>.web.app`, `<project>.firebaseapp.com` are listed; add `rishabhramteke.github.io` (or your custom domain).
+
 - [ ] **Create the Firebase project**
   - Go to https://console.firebase.google.com/ → *Add project* (e.g. `gatemate-prod`).
   - Enable **Cloud Firestore** in *production mode*. Pick a region close to most users (e.g. `eur3` for EU traffic).
@@ -74,13 +78,27 @@ Steps:
   - Push any commit to `main` (or run *Actions → Deploy GateMate to GitHub Pages → Re-run all jobs*).
   - Confirm green build + visit https://rishabhramteke.github.io/gatemate/ and submit a test profile.
 
-- [ ] **Smoke test the full flow**
-  - Submit two overlapping profiles from two browsers (or incognito) at the same airport.
-  - Confirm they appear in each other's match list.
-  - Tap *Reveal Instagram* — confirm `revealCount` increments in the Firestore console.
+- [ ] **Smoke test the full flow** (now end-to-end with email verification)
+  - Open the deployed site, submit the form on `/signup` (no email field there).
+  - Confirm you land on `/verify` showing the "Almost there ✨" prompt.
+  - Enter a real email, click "Send my magic link".
+  - Open the inbox, click the link. You should be redirected back to the site, briefly see "Finishing up…", then land on `/matches`.
+  - Confirm the new doc in Firestore has `emailVerified: true`, `status: 'active'`, `userId == auth.uid`.
+  - Repeat from a second browser/incognito with a different email and an overlapping window — confirm both profiles see each other.
+  - Tap *Reveal Instagram* — confirm `revealCount` increments in Firestore.
   - Wait until `layoverEnd` passes; confirm the profile disappears from results.
 
 ---
+
+## 🔐 Phase-2 verification — close the IG ownership gap
+
+Today's email-link verification proves the user owns *some* email. It does **not** prove the user owns the Instagram handle they typed. Before promoting the site beyond a closed circle, ship one of these:
+
+- [ ] **Cheap (a few hours)** — server-side IG existence check. Cloud Function fetches `https://instagram.com/<handle>/`, returns 200/404. Reject obviously fake handles. Stops the easiest griefing but does *not* prove ownership.
+- [ ] **Proper (~1 day)** — bio-code verification. Generate a 6-char code on submit. Show "Add `gm-x7q2` to your Instagram bio for 60 seconds, then tap Verify." Cloud Function fetches the bio HTML, looks for the code, sets `instagramVerified: true`. Add a `instagramVerified == true` filter to read rules. This is the cheapest mitigation that actually closes the third-party-harassment vector.
+- [ ] **Gold-standard (~1 week + Meta review)** — Instagram OAuth via Meta developer app. Requires app submission for review. Proves IG ownership cryptographically with no friction.
+
+Until at least the bio-code path is shipped, GateMate should remain in a closed test (friends + acquaintances). The risk is *not* fake users — it's a malicious user typing a stranger's IG handle and weaponising the app to send DMs to that stranger.
 
 ## 🛡 Hardening (next sprint)
 

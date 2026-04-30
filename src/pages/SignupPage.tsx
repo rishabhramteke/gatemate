@@ -4,7 +4,8 @@ import AirportSelect from '../components/AirportSelect';
 import VibeSelector from '../components/VibeSelector';
 import PrivacyNotice from '../components/PrivacyNotice';
 import { fromDatetimeLocal, toDatetimeLocal } from '../utils/time';
-import { createProfile, firebaseReady } from '../services/profiles';
+import { firebaseReady } from '../services/profiles';
+import { saveDraft } from '../services/storage';
 import { track } from '../services/analytics';
 import type { Gender, InterestedIn, ProfileDraft, Vibe } from '../types';
 
@@ -19,7 +20,7 @@ export default function SignupPage() {
     return { start: toDatetimeLocal(start), end: toDatetimeLocal(end) };
   }, []);
 
-  const [name, setName] = useState('');
+  const [nickname, setNickname] = useState('');
   const [age, setAge] = useState<number | ''>('');
   const [gender, setGender] = useState<Gender>('woman');
   const [interestedIn, setInterestedIn] = useState<InterestedIn>('everyone');
@@ -72,7 +73,7 @@ export default function SignupPage() {
     }
 
     const draft: ProfileDraft = {
-      name: name.trim(),
+      nickname: nickname.trim(),
       age,
       gender,
       interestedIn,
@@ -86,37 +87,19 @@ export default function SignupPage() {
     };
 
     setSubmitting(true);
-    try {
-      let id = 'demo';
-      if (firebaseReady()) {
-        id = await createProfile(draft);
-      }
-      track('profile_created', { airport: airportCode, vibes: vibe });
-
-      const params = new URLSearchParams({
-        airport: airportCode,
-        start: start.toISOString(),
-        end: end.toISOString(),
-        gender,
-        interestedIn,
-        id,
-        name: draft.name,
-      });
-      navigate(`/matches?${params.toString()}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.');
-    } finally {
-      setSubmitting(false);
-    }
+    saveDraft(draft);
+    track('form_submitted', { airport: airportCode });
+    navigate('/verify');
+    setSubmitting(false);
   };
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 animate-fade-in">
       <header className="mb-6">
-        <span className="pill">step 1 of 1 · cosy & quick</span>
+        <span className="pill">step 1 of 2 · cosy & quick</span>
         <h1 className="mt-3 font-display text-3xl font-bold text-amber-900">Drop your layover ✈️</h1>
         <p className="mt-1 text-amber-900/75">
-          30 seconds. No login. Your profile gently disappears when your layover ends.
+          30 seconds. No password. We'll send a quick email check before you go live.
         </p>
       </header>
 
@@ -130,14 +113,14 @@ export default function SignupPage() {
       <form className="card space-y-5" onSubmit={handleSubmit} onChange={markStarted}>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="label" htmlFor="name">Name or nickname</label>
+            <label className="label" htmlFor="nickname">Nickname</label>
             <input
-              id="name"
+              id="nickname"
               className="input"
               required
               maxLength={40}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
               placeholder="Alex"
             />
           </div>
@@ -188,6 +171,25 @@ export default function SignupPage() {
         </div>
 
         <div>
+          <label className="label" htmlFor="ig">Instagram handle</label>
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-peach-400">@</span>
+            <input
+              id="ig"
+              className="input pl-7"
+              required
+              maxLength={32}
+              value={instagram}
+              onChange={(e) => setInstagram(e.target.value)}
+              placeholder="yourhandle"
+            />
+          </div>
+          <p className="mt-1 text-xs text-amber-900/60">
+            Only revealed when someone taps "Reveal". Public, on purpose.
+          </p>
+        </div>
+
+        <div>
           <label className="label" htmlFor="airport">Airport</label>
           <AirportSelect value={airportCode} onChange={setAirportCode} />
         </div>
@@ -217,33 +219,16 @@ export default function SignupPage() {
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="label" htmlFor="ig">Instagram handle</label>
-            <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-peach-400">@</span>
-              <input
-                id="ig"
-                className="input pl-7"
-                required
-                maxLength={32}
-                value={instagram}
-                onChange={(e) => setInstagram(e.target.value)}
-                placeholder="yourhandle"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="label" htmlFor="flight">Flight number (optional)</label>
-            <input
-              id="flight"
-              className="input"
-              maxLength={10}
-              value={flightNumber}
-              onChange={(e) => setFlightNumber(e.target.value)}
-              placeholder="KL1234"
-            />
-          </div>
+        <div>
+          <label className="label" htmlFor="flight">Flight number (optional)</label>
+          <input
+            id="flight"
+            className="input"
+            maxLength={10}
+            value={flightNumber}
+            onChange={(e) => setFlightNumber(e.target.value)}
+            placeholder="KL1234"
+          />
         </div>
 
         <div>
@@ -273,7 +258,7 @@ export default function SignupPage() {
         )}
 
         <button type="submit" className="btn-primary w-full text-lg" disabled={submitting}>
-          {submitting ? 'Saving…' : '🛫 Find my matches'}
+          {submitting ? 'Saving…' : 'Next: quick email check ✨'}
         </button>
       </form>
     </div>

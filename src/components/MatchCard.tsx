@@ -32,10 +32,20 @@ export default function MatchCard({ match, delayMs = 0 }: Props) {
     >
       <header className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="font-display text-lg font-bold text-amber-900">
-            {profile.name}, {profile.age}
-          </h3>
-          <p className="text-sm text-amber-900/70">
+          <div className="flex items-center gap-2">
+            <h3 className="font-display text-lg font-bold text-amber-900">
+              {profile.nickname}, {profile.age}
+            </h3>
+            {profile.emailVerified && (
+              <span
+                className="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700"
+                title="Email verified — passed our quick real-human check."
+              >
+                ✓ Verified
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-sm text-amber-900/70">
             ⏱ {humanDuration(overlapMinutes)} together · {formatRange(overlapStart, overlapEnd)}
           </p>
         </div>

@@ -15,12 +15,17 @@
 
 GateMate is a browser-first signup site that matches travelers at the same airport whose layover windows overlap. Users drop a profile (name, age, gender, vibe, Instagram), get shown overlapping travelers, and connect via Instagram. **No in-app chat. No login. No photos. No GPS.**
 
-### Core flow
+### Core flow (hybrid Instagram + email verification)
 1. **Landing** → CTA "Find people at my airport".
-2. **Signup form** → name, age, gender, interested-in, airport, layover start/end, Instagram, optional flight number, vibe tags, consent checkbox.
-3. **Submit** → write to Firestore → query overlapping travelers at same airport → render results.
-4. **Match cards** → name, age, vibe, overlap window. Instagram handle is **hidden** until the viewer taps **Reveal Instagram** (which `revealCount += 1` server-side).
-5. **Expiry** → profiles auto-disappear from results once `expiresAt` (= `layoverEnd`) is in the past.
+2. **`/signup`** → nickname, age, gender, interested-in, airport, layover start/end, Instagram handle, optional flight number, vibe tags, consent checkbox. **No email yet.** On submit the draft is saved to `localStorage` and we navigate to `/verify`.
+3. **`/verify`** → "Almost there ✨" screen asks for an email. We call Firebase Auth `sendSignInLinkToEmail` with `handleCodeInApp: true`. Show "check your inbox".
+4. **User clicks the magic link** in their email → returns to `/verify`.
+5. **`/verify` (return mode)** detects `isSignInWithEmailLink`, calls `signInWithEmailLink`, reads the draft from `localStorage`, calls `createVerifiedProfile()` which writes to Firestore with `userId = auth.uid`, `emailVerified = true`, `status = 'active'`. Draft is cleared. Navigate to `/matches`.
+6. **`/matches`** uses `auth.currentUser` → loads viewer's latest active profile via `getMyLatestActiveProfile()` → queries other profiles at the same airport → runs matching → renders cards.
+7. **Match cards** → nickname, age, ✓ Verified badge, vibe, overlap window. Instagram handle is **hidden** until the viewer taps **Reveal Instagram** (which bumps `revealCount` server-side).
+8. **Expiry** → profiles auto-disappear from results once `expiresAt` (= `layoverEnd`) is in the past.
+
+Why hybrid: Instagram is the **public social contact channel**, email is the **private anti-spam verification channel**. Email is never displayed to other users or used for marketing in MVP. Security rules require `request.auth.token.email_verified == true` on every create, so a misbehaving client *cannot* set `emailVerified: true` itself.
 
 ### Out of scope for MVP
 - Payments, App Store, Play Store, push notifications, in-app chat, GPS, profile photos, full auth.
@@ -86,7 +91,8 @@ GateMate is a browser-first signup site that matches travelers at the same airpo
 ```ts
 interface LayoverProfile {
   id: string;                // Firestore doc id (assigned by addDoc)
-  name: string;              // 1–40 chars
+  userId: string;            // == auth.uid; rules pin this to request.auth.uid
+  nickname: string;          // 1–40 chars
   age: number;               // 18–99
   gender: 'woman' | 'man' | 'nonbinary' | 'other';
   interestedIn: 'women' | 'men' | 'everyone' | 'friends';
@@ -94,15 +100,19 @@ interface LayoverProfile {
   layoverStart: Timestamp;
   layoverEnd: Timestamp;     // must be > layoverStart
   instagram: string;         // handle without leading '@', lowercased
+  email: string;             // == auth.token.email; rules pin this
+  emailVerified: boolean;    // must be true to create; rules require auth token email_verified
   flightNumber?: string;     // optional, uppercased
   vibe: Vibe[];              // 0–6 of: coffee, drinks, walk, chat, dating, friends
   consent: boolean;          // must be true to create
   createdAt: Timestamp;      // server-side at create
   expiresAt: Timestamp;      // == layoverEnd (used for read filter and TTL)
-  status: 'active' | 'expired' | 'hidden';
+  status: 'pending_verification' | 'active' | 'expired' | 'hidden';
   revealCount: number;       // incremented on Reveal; the only mutable field
 }
 ```
+
+We currently **never write `pending_verification`** — drafts are parked in `localStorage` and only land in Firestore once the email link is clicked, at which point we write `status='active'` directly. The status enum still includes `pending_verification` for forward-compat (e.g. a future flow that stores drafts server-side for cross-device verification).
 
 ### Why `expiresAt == layoverEnd`
 - Reads are filtered by `expiresAt > request.time` — once the layover ends, the profile is invisible without a server-side cleanup.
@@ -110,9 +120,10 @@ interface LayoverProfile {
 
 ### Indexes
 
-| Fields                                                    | Purpose                                               |
-|-----------------------------------------------------------|-------------------------------------------------------|
-| `airportCode ASC` + `status ASC` + `expiresAt ASC`        | The composite query in `listActiveByAirport`         |
+| Fields                                                                          | Purpose                                          |
+|---------------------------------------------------------------------------------|--------------------------------------------------|
+| `airportCode ASC` + `status ASC` + `emailVerified ASC` + `expiresAt ASC`        | `listActiveByAirport` — show only verified, active, non-expired profiles per airport |
+| `userId ASC` + `status ASC` + `expiresAt DESC`                                  | `getMyLatestActiveProfile` — pull the viewer's most recent live profile             |
 
 (declared in `firestore.indexes.json` — `firebase deploy --only firestore:indexes` to apply.)
 
@@ -123,12 +134,14 @@ interface LayoverProfile {
 A profile **other** matches viewer **u** iff:
 
 ```
-other.id != u.id
+other.id          != u.profileId
+other.userId      != u.userId        # exclude all of viewer's other profiles too
 other.airportCode == u.airportCode
-other.status == 'active'
-other.expiresAt > now
-u.layoverStart < other.layoverEnd
-u.layoverEnd   > other.layoverStart
+other.status      == 'active'
+other.emailVerified == true
+other.expiresAt   > now
+u.layoverStart    < other.layoverEnd
+u.layoverEnd      > other.layoverStart
 isCompatible(u, other)
 ```
 
@@ -170,8 +183,18 @@ On the **client**, after fetching all currently-active profiles for the airport.
 
 Full rules live in `firestore.rules`. Key invariants enforced:
 
-- `read` only when `status == 'active' && expiresAt > request.time`.
-- `create` requires every required field, valid types, `consent == true`, `status == 'active'`, `revealCount == 0`, `age` in `[18, 99]`, name/instagram length caps, `airportCode` is exactly 3 chars, `gender`/`interestedIn` from a fixed enum, `layoverEnd > layoverStart`, and `expiresAt == layoverEnd`.
+- `read` only when `status == 'active' && emailVerified == true && expiresAt > request.time`.
+- `create` requires:
+  - `request.auth != null` (must be signed in via Firebase Auth)
+  - `request.auth.token.email_verified == true` (email-link sign-in sets this)
+  - `request.resource.data.userId == request.auth.uid` (no impersonation)
+  - `request.resource.data.email == request.auth.token.email` (email pinned to auth claim)
+  - `request.resource.data.emailVerified == true`
+  - all required fields present and well-typed
+  - `consent == true`, `status == 'active'`, `revealCount == 0`
+  - `age` in `[18, 99]`, nickname/instagram/email length caps
+  - `airportCode` is exactly 3 chars, `gender` and `interestedIn` from a fixed enum
+  - `layoverEnd > layoverStart` and `expiresAt == layoverEnd`.
 - `update` only if the **only** changed field is `revealCount`, and the new value is exactly `prev + 1`. Nothing else may be patched.
 - `delete` is denied entirely. Cleanup is server-side only.
 
@@ -292,7 +315,7 @@ Today they only `console.debug` and forward to `window.gtag` if it's present. Sw
 |---|---------------------------------------------------------------------|----------------------------------------------------------------------|
 | 1 | **HashRouter, not BrowserRouter**                                   | GitHub Pages doesn't do server-side rewrites without hacks. Clean.   |
 | 2 | **Vite `base: '/gatemate/'`**                                       | Site lives at a sub-path on `rishabhramteke.github.io`.               |
-| 3 | **No login**                                                        | Friction kills MVP signups; rules + consent flag are enough.          |
+| 3 | **Email-link auth, not full passwords**                             | Verification without password fatigue. Email is private (not shown). Phase-2: bio-code IG verification. |
 | 4 | **Client-side filtering after `where(airportCode, status, expiresAt)`** | Composite range queries on Firestore are awkward; client filter is fine for MVP scale. |
 | 5 | **`HashRouter` + a `404.html` redirect**                            | Belt-and-braces for users who paste a `/path` URL.                    |
 | 6 | **Reveal action increments a counter, doesn't gate the field**      | Firestore cannot field-mask client reads without a backend; UX gate + audit counter is the practical compromise. |

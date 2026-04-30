@@ -1,35 +1,47 @@
 rules_version = '2';
 
 // GateMate Firestore security rules.
-// Public, no-auth MVP — every constraint is enforced server-side here.
+//
+// Trust model: Firebase Auth's email-link sign-in confirms email ownership.
+// We require `request.auth.token.email_verified == true` on every create, and
+// pin `email` and `userId` to the auth claims so the client can't impersonate
+// anyone else. Reads are restricted to active, verified, non-expired profiles.
 service cloud.firestore {
   match /databases/{database}/documents {
 
     match /layover_profiles/{profileId} {
 
-      // Only allow reading active, non-expired profiles. Hidden / expired stay invisible.
+      // Read: only active, email-verified profiles whose layover hasn't ended.
       allow read: if resource.data.status == 'active'
+                  && resource.data.emailVerified == true
                   && resource.data.expiresAt > request.time;
 
-      // Allow create when all required fields exist, types are correct, consent is true,
-      // and the layover window is sane.
-      allow create: if request.resource.data.keys().hasAll([
-                        'name', 'age', 'gender', 'interestedIn',
-                        'airportCode', 'layoverStart', 'layoverEnd',
-                        'instagram', 'vibe', 'consent',
-                        'createdAt', 'expiresAt', 'status', 'revealCount'
-                      ])
+      // Create: must be signed in via Firebase Auth, email must be verified,
+      // and the doc's userId/email must match the auth claims.
+      allow create: if request.auth != null
+                    && request.auth.token.email_verified == true
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.email == request.auth.token.email
+                    && request.resource.data.emailVerified == true
                     && request.resource.data.consent == true
                     && request.resource.data.status == 'active'
                     && request.resource.data.revealCount == 0
+                    && request.resource.data.keys().hasAll([
+                         'userId', 'nickname', 'age', 'gender', 'interestedIn',
+                         'airportCode', 'layoverStart', 'layoverEnd',
+                         'instagram', 'email', 'emailVerified', 'vibe', 'consent',
+                         'createdAt', 'expiresAt', 'status', 'revealCount'
+                       ])
                     && request.resource.data.age is int
                     && request.resource.data.age >= 18 && request.resource.data.age <= 99
-                    && request.resource.data.name is string
-                    && request.resource.data.name.size() > 0
-                    && request.resource.data.name.size() <= 40
+                    && request.resource.data.nickname is string
+                    && request.resource.data.nickname.size() > 0
+                    && request.resource.data.nickname.size() <= 40
                     && request.resource.data.instagram is string
                     && request.resource.data.instagram.size() > 0
                     && request.resource.data.instagram.size() <= 32
+                    && request.resource.data.email is string
+                    && request.resource.data.email.size() <= 254
                     && request.resource.data.airportCode is string
                     && request.resource.data.airportCode.size() == 3
                     && request.resource.data.gender in ['woman', 'man', 'nonbinary', 'other']
@@ -41,7 +53,8 @@ service cloud.firestore {
                     && request.resource.data.layoverEnd > request.resource.data.layoverStart
                     && request.resource.data.expiresAt == request.resource.data.layoverEnd;
 
-      // Only allow incrementing revealCount; nothing else may change.
+      // Update: only the revealCount field, and only by exactly +1.
+      // Anyone (signed in or not) can tap "Reveal Instagram" to bump the counter.
       allow update: if request.resource.data.diff(resource.data).affectedKeys()
                        .hasOnly(['revealCount'])
                     && request.resource.data.revealCount == resource.data.revealCount + 1;

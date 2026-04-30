@@ -4,11 +4,10 @@ export function isCompatible(
   viewer: { gender: Gender; interestedIn: InterestedIn },
   other: { gender: Gender; interestedIn: InterestedIn }
 ): boolean {
-  // "friends" is symmetric — both sides must be open to it.
+  // "friends" is symmetric — both sides must opt in.
   if (viewer.interestedIn === 'friends' || other.interestedIn === 'friends') {
     return viewer.interestedIn === 'friends' && other.interestedIn === 'friends';
   }
-
   return wantsGender(viewer.interestedIn, other.gender) &&
     wantsGender(other.interestedIn, viewer.gender);
 }
@@ -26,15 +25,27 @@ function wantsGender(pref: InterestedIn, gender: Gender): boolean {
   }
 }
 
+export interface ViewerForMatching {
+  profileId: string | null;
+  userId: string | null;
+  airportCode: string;
+  gender: Gender;
+  interestedIn: InterestedIn;
+  layoverStart: Date;
+  layoverEnd: Date;
+}
+
 export function overlapMatches(
-  viewer: { id: string | null; layoverStart: Date; layoverEnd: Date; gender: Gender; interestedIn: InterestedIn; airportCode: string },
+  viewer: ViewerForMatching,
   candidates: LayoverProfile[],
   now: Date = new Date()
 ): MatchView[] {
   return candidates
-    .filter((c) => c.id !== viewer.id)
+    .filter((c) => c.id !== viewer.profileId)
+    .filter((c) => !viewer.userId || c.userId !== viewer.userId)
     .filter((c) => c.airportCode === viewer.airportCode)
     .filter((c) => c.status === 'active')
+    .filter((c) => c.emailVerified === true)
     .filter((c) => c.expiresAt.toDate() > now)
     .filter((c) => isCompatible(viewer, c))
     .map((c) => {

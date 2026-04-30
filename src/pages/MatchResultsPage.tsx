@@ -4,33 +4,23 @@ import MatchCard from '../components/MatchCard';
 import { AirportActivityMap } from '../components/airportMap';
 import { airportLabel } from '../utils/airports';
 import { formatRange } from '../utils/time';
-import { listActiveByAirport, firebaseReady } from '../services/profiles';
-import { overlapMatches } from '../services/matching';
+import {
+  firebaseReady,
+  getMyLatestActiveProfile,
+  listActiveByAirport,
+} from '../services/profiles';
+import { watchAuth } from '../services/auth';
+import { overlapMatches, type ViewerForMatching } from '../services/matching';
+import { loadDraft } from '../services/storage';
 import { track } from '../services/analytics';
-import type { Gender, InterestedIn, MatchView } from '../types';
+import type { LayoverProfile, MatchView } from '../types';
 
 export default function MatchResultsPage() {
   const [params] = useSearchParams();
-  const airport = params.get('airport') ?? '';
-  const start = params.get('start');
-  const end = params.get('end');
-  const gender = (params.get('gender') ?? 'other') as Gender;
-  const interestedIn = (params.get('interestedIn') ?? 'everyone') as InterestedIn;
-  const id = params.get('id');
-  const name = params.get('name');
+  const isDemo = params.get('demo') === '1' || !firebaseReady();
 
-  const viewer = useMemo(() => {
-    if (!start || !end || !airport) return null;
-    return {
-      id,
-      airportCode: airport,
-      gender,
-      interestedIn,
-      layoverStart: new Date(start),
-      layoverEnd: new Date(end),
-    };
-  }, [airport, start, end, gender, interestedIn, id]);
-
+  const [viewer, setViewer] = useState<ViewerForMatching | null>(null);
+  const [viewerProfile, setViewerProfile] = useState<LayoverProfile | null>(null);
   const [matches, setMatches] = useState<MatchView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,24 +29,85 @@ export default function MatchResultsPage() {
     track('page_view', { page: 'matches' });
   }, []);
 
+  // 1. Resolve the viewer.
   useEffect(() => {
     let cancelled = false;
-    async function run() {
-      if (!viewer) {
+
+    if (isDemo) {
+      const draft = loadDraft();
+      if (!draft) {
         setLoading(false);
         return;
       }
-      setLoading(true);
+      setViewer({
+        profileId: null,
+        userId: null,
+        airportCode: draft.airportCode,
+        gender: draft.gender,
+        interestedIn: draft.interestedIn,
+        layoverStart: draft.layoverStart,
+        layoverEnd: draft.layoverEnd,
+      });
+      setViewerProfile(null);
+      setLoading(false);
+      return;
+    }
+
+    const unsub = watchAuth(async (user) => {
+      if (cancelled) return;
+      if (!user) {
+        setViewer(null);
+        setLoading(false);
+        return;
+      }
       try {
-        if (!firebaseReady()) {
-          setMatches([]);
+        const profile = await getMyLatestActiveProfile();
+        if (cancelled) return;
+        if (!profile) {
+          setViewer(null);
+          setLoading(false);
           return;
         }
-        const profiles = await listActiveByAirport(viewer.airportCode);
-        if (cancelled) return;
-        const result = overlapMatches(viewer, profiles);
-        setMatches(result);
-        track('matches_found', { airport: viewer.airportCode, count: result.length });
+        setViewerProfile(profile);
+        setViewer({
+          profileId: profile.id,
+          userId: profile.userId,
+          airportCode: profile.airportCode,
+          gender: profile.gender,
+          interestedIn: profile.interestedIn,
+          layoverStart: profile.layoverStart.toDate(),
+          layoverEnd: profile.layoverEnd.toDate(),
+        });
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : 'Failed to load your profile.');
+          setLoading(false);
+        }
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unsub();
+    };
+  }, [isDemo]);
+
+  // 2. Fetch candidates + run matching.
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!viewer) return;
+      setLoading(true);
+      try {
+        if (isDemo) {
+          setMatches([]);
+        } else {
+          const profiles = await listActiveByAirport(viewer.airportCode);
+          if (cancelled) return;
+          const result = overlapMatches(viewer, profiles);
+          setMatches(result);
+          track('matches_found', { airport: viewer.airportCode, count: result.length });
+        }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load matches.');
       } finally {
@@ -67,14 +118,22 @@ export default function MatchResultsPage() {
     return () => {
       cancelled = true;
     };
-  }, [viewer]);
+  }, [viewer, isDemo]);
+
+  const headerLine = useMemo(() => {
+    if (loading) return 'Looking around the airport ✨';
+    if (matches.length === 0) return 'Quiet skies for now…';
+    return `${matches.length} traveler${matches.length === 1 ? '' : 's'} overlap with your layover`;
+  }, [loading, matches.length]);
 
   if (!viewer) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10 text-center animate-fade-in">
         <h1 className="font-display text-2xl font-bold text-amber-900">Missing layover info</h1>
-        <p className="mt-2 text-amber-900/70">Start over by filling out the signup form.</p>
-        <Link to="/signup" className="btn-primary mt-6">Drop your layover</Link>
+        <p className="mt-2 text-amber-900/70">
+          Drop a fresh layover to see who's around at your airport.
+        </p>
+        <Link to="/signup" className="btn-primary mt-6 inline-flex">Drop your layover</Link>
       </div>
     );
   }
@@ -82,14 +141,10 @@ export default function MatchResultsPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
       <header className="mb-6 animate-fade-in">
-        {name && <p className="text-sm font-semibold text-peach-600">Hi {name} 👋</p>}
-        <h1 className="mt-1 font-display text-3xl font-bold text-amber-900">
-          {loading
-            ? 'Looking around the airport ✨'
-            : matches.length === 0
-              ? 'Quiet skies for now…'
-              : `${matches.length} traveler${matches.length === 1 ? '' : 's'} overlap with your layover`}
-        </h1>
+        {viewerProfile?.nickname && (
+          <p className="text-sm font-semibold text-peach-600">Hi {viewerProfile.nickname} 👋</p>
+        )}
+        <h1 className="mt-1 font-display text-3xl font-bold text-amber-900">{headerLine}</h1>
         <p className="mt-1 text-amber-900/75">
           {airportLabel(viewer.airportCode)} · {formatRange(viewer.layoverStart, viewer.layoverEnd)}
         </p>
@@ -108,7 +163,7 @@ export default function MatchResultsPage() {
         </div>
       )}
 
-      {!firebaseReady() && (
+      {isDemo && (
         <div className="mb-4 rounded-3xl border border-skyish-200 bg-skyish-50/80 p-3 text-sm text-sky-800 shadow-soft">
           ✨ Demo mode — no live database connected. Configure Firebase to see real travelers here.
         </div>
