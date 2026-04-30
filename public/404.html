@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>GateMate</title>
+    <script>
+      // SPA fallback for GitHub Pages — redirect any deep link back to / so the
+      // React Router can handle the route on the client.
+      var seg = '/gatemate/';
+      var l = window.location;
+      var path = l.pathname.indexOf(seg) === 0 ? l.pathname.slice(seg.length) : '';
+      l.replace(l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') + seg + '?p=/' + path + l.search.replace(/^\?/, '&') + l.hash);
+    </script>
+  </head>
+  <body></body>
+</html>

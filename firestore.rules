@@ -1,0 +1,53 @@
+rules_version = '2';
+
+// GateMate Firestore security rules.
+// Public, no-auth MVP — every constraint is enforced server-side here.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /layover_profiles/{profileId} {
+
+      // Only allow reading active, non-expired profiles. Hidden / expired stay invisible.
+      allow read: if resource.data.status == 'active'
+                  && resource.data.expiresAt > request.time;
+
+      // Allow create when all required fields exist, types are correct, consent is true,
+      // and the layover window is sane.
+      allow create: if request.resource.data.keys().hasAll([
+                        'name', 'age', 'gender', 'interestedIn',
+                        'airportCode', 'layoverStart', 'layoverEnd',
+                        'instagram', 'vibe', 'consent',
+                        'createdAt', 'expiresAt', 'status', 'revealCount'
+                      ])
+                    && request.resource.data.consent == true
+                    && request.resource.data.status == 'active'
+                    && request.resource.data.revealCount == 0
+                    && request.resource.data.age is int
+                    && request.resource.data.age >= 18 && request.resource.data.age <= 99
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.name.size() <= 40
+                    && request.resource.data.instagram is string
+                    && request.resource.data.instagram.size() > 0
+                    && request.resource.data.instagram.size() <= 32
+                    && request.resource.data.airportCode is string
+                    && request.resource.data.airportCode.size() == 3
+                    && request.resource.data.gender in ['woman', 'man', 'nonbinary', 'other']
+                    && request.resource.data.interestedIn in ['women', 'men', 'everyone', 'friends']
+                    && request.resource.data.vibe is list
+                    && request.resource.data.vibe.size() <= 6
+                    && request.resource.data.layoverStart is timestamp
+                    && request.resource.data.layoverEnd is timestamp
+                    && request.resource.data.layoverEnd > request.resource.data.layoverStart
+                    && request.resource.data.expiresAt == request.resource.data.layoverEnd;
+
+      // Only allow incrementing revealCount; nothing else may change.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['revealCount'])
+                    && request.resource.data.revealCount == resource.data.revealCount + 1;
+
+      // No client deletes. Cleanup runs server-side (scheduled function or admin).
+      allow delete: if false;
+    }
+  }
+}
