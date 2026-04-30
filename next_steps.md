@@ -4,6 +4,45 @@
 
 ---
 
+## 🕶 Creator anonymity migration (do this first if anonymity matters)
+
+Goal: end users see neither your handle nor the source code.
+
+| Layer                            | Today                                       | After migration                                    |
+|----------------------------------|---------------------------------------------|----------------------------------------------------|
+| Footer link                      | scrubbed ✅                                  | (still scrubbed)                                   |
+| Public URL                       | `rishabhramteke.github.io/gatemate/`        | `<project-id>.web.app` on Firebase Hosting         |
+| Source repo                      | public                                      | private                                            |
+| Google account on Firebase       | n/a                                         | a fresh burner Gmail used only for this project    |
+
+Steps:
+
+1. **Create a burner Gmail** (Google account) used only for GateMate. Don't link it to your real phone if you can avoid it; otherwise accept that Google ties identity behind the scenes regardless.
+2. **Create the Firebase project** at https://console.firebase.google.com under that account. Name the project something like `gatemate-app` (this becomes your URL: `gatemate-app.web.app`). Stay on the **Spark (free) plan**.
+3. **Enable Cloud Firestore** in production mode, region `eur3` (or closest to your traffic).
+4. **Register a Web app** (Project settings → Your apps → Web). Copy the seven config values.
+5. **Generate a service account JSON** for CI:
+   - Project settings → *Service accounts* tab → *Generate new private key* → save the JSON locally.
+6. **Add GitHub repo secrets** (Settings → Secrets and variables → Actions):
+   - `VITE_FIREBASE_API_KEY` … `VITE_FIREBASE_MEASUREMENT_ID` (the seven from step 4)
+   - `FIREBASE_SERVICE_ACCOUNT` — paste the **entire** JSON file contents from step 5
+7. **Enable the Firebase workflow** — uncomment the `push:` trigger in `.github/workflows/firebase.yml`. Push any commit to `main`. The workflow will:
+   - Build with `BASE_PATH=/` (so assets resolve at root)
+   - Deploy hosting → live at `https://<project-id>.web.app`
+   - Deploy `firestore.rules` and `firestore.indexes.json`
+8. **Verify Firebase Hosting** — visit `https://<project-id>.web.app`, submit a test profile, confirm the doc lands in Firestore.
+9. **Make the GitHub repo private** (Settings → Danger Zone → Change visibility):
+   - Free GitHub plan supports private repos for free, but **GitHub Pages on free plans only works from public repos**. Once private, the GH Pages deploy will start failing — that's expected.
+10. **Disable the GH Pages workflow** so it stops trying:
+    - Either delete `.github/workflows/deploy.yml`, or comment out its `on:` triggers.
+    - Optionally: in repo Settings → Pages, set Source to "None".
+11. **(Optional) Custom domain** — buy `gatemate.app` (or similar) and add it under Firebase Hosting → *Custom domains*. Follow the DNS instructions. URL becomes fully neutral.
+12. **Rotate the service account key** every few months. Generate a new one, replace the `FIREBASE_SERVICE_ACCOUNT` secret, delete the old key in Firebase console.
+
+> Once steps 1–10 land, the public can no longer (a) read the source, (b) see your handle in the URL, or (c) see attribution anywhere on the site. Google still has identity behind the scenes — that's an unavoidable Firebase trade-off.
+
+---
+
 ## 🚦 Make matching actually work (do these now)
 
 - [ ] **Create the Firebase project**

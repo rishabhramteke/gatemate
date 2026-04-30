@@ -10,6 +10,12 @@ dist-ssr
 .env.local
 .env.*.local
 
+# firebase — local-only project bindings stay out of git
+.firebaserc
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+
 # logs
 npm-debug.log*
 yarn-debug.log*
