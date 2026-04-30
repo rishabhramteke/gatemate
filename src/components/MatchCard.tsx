@@ -6,9 +6,10 @@ import { track } from '../services/analytics';
 
 interface Props {
   match: MatchView;
+  delayMs?: number;
 }
 
-export default function MatchCard({ match }: Props) {
+export default function MatchCard({ match, delayMs = 0 }: Props) {
   const { profile, overlapStart, overlapEnd, overlapMinutes } = match;
   const [revealed, setRevealed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -25,19 +26,20 @@ export default function MatchCard({ match }: Props) {
   };
 
   return (
-    <article className="card flex flex-col gap-3">
+    <article
+      className="card card-hover flex flex-col gap-3 animate-fade-in"
+      style={{ animationDelay: `${delayMs}ms` }}
+    >
       <header className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-lg font-semibold text-slate-900">
+          <h3 className="font-display text-lg font-bold text-amber-900">
             {profile.name}, {profile.age}
           </h3>
-          <p className="text-sm text-slate-500">
-            ⏱ {humanDuration(overlapMinutes)} overlap · {formatRange(overlapStart, overlapEnd)}
+          <p className="text-sm text-amber-900/70">
+            ⏱ {humanDuration(overlapMinutes)} together · {formatRange(overlapStart, overlapEnd)}
           </p>
         </div>
-        <span className="rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-semibold text-sky-700">
-          ✈️ {profile.airportCode}
-        </span>
+        <span className="pill">✈️ {profile.airportCode}</span>
       </header>
 
       {profile.vibe.length > 0 && (
@@ -49,6 +51,8 @@ export default function MatchCard({ match }: Props) {
           ))}
         </div>
       )}
+
+      <p className="text-sm text-amber-900/80">Someone else is waiting too ✨</p>
 
       <div className="flex flex-wrap items-center gap-2 pt-1">
         {revealed ? (
@@ -62,7 +66,7 @@ export default function MatchCard({ match }: Props) {
           </a>
         ) : (
           <button className="btn-primary" onClick={reveal} disabled={busy}>
-            {busy ? 'Revealing…' : 'Reveal Instagram'}
+            {busy ? 'Revealing…' : '💌 Reveal Instagram'}
           </button>
         )}
         <button
@@ -70,12 +74,12 @@ export default function MatchCard({ match }: Props) {
           className="btn-ghost"
           onClick={() => alert('Reporting coming soon — for the MVP, just close the tab.')}
         >
-          🚩 Report / hide
+          🌷 Report / hide
         </button>
       </div>
 
-      <p className="text-xs text-slate-500">
-        Only meet in public airport areas. Don't share boarding passes or documents.
+      <p className="text-xs text-amber-900/55">
+        Stay in public airport areas. Don't share boarding passes or documents.
       </p>
     </article>
   );

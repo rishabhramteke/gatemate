@@ -191,31 +191,42 @@ gatemate/
 │  │  ├─ Footer.tsx
 │  │  ├─ MatchCard.tsx
 │  │  ├─ PrivacyNotice.tsx
-│  │  └─ VibeSelector.tsx
+│  │  ├─ VibeSelector.tsx
+│  │  └─ airportMap/                     "Vibe map" — abstract airport activity visualization
+│  │     ├─ AirportActivityMap.tsx       SVG composition: hub + terminal blobs + sparkles
+│  │     ├─ TerminalZone.tsx             one zone (radial gradient + SMIL pulse glow)
+│  │     ├─ ActivityHeader.tsx           airport name + global activity headline
+│  │     ├─ ActivityTooltip.tsx          per-terminal floating card
+│  │     ├─ colors.ts                    score → pastel palette (sky → peach → coral)
+│  │     └─ index.ts
 │  ├─ pages/
 │  │  ├─ LandingPage.tsx
 │  │  ├─ SignupPage.tsx
-│  │  └─ MatchResultsPage.tsx
+│  │  └─ MatchResultsPage.tsx            embeds <AirportActivityMap />
 │  ├─ services/
 │  │  ├─ analytics.ts                    track() shim
 │  │  ├─ matching.ts                     overlap + compatibility logic
 │  │  └─ profiles.ts                     Firestore CRUD
 │  ├─ utils/
 │  │  ├─ airports.ts                     AMS, BCN, CDG, FRA, LHR, MAD, FCO, IST, DXB, DOH
+│  │  ├─ airportActivity.ts              MOCK activity data + headline helpers (swap for real API)
 │  │  └─ time.ts                         format helpers
-│  ├─ types/index.ts
+│  ├─ types/
+│  │  ├─ index.ts                        LayoverProfile, ProfileDraft, MatchView, etc.
+│  │  └─ activity.ts                     TerminalActivity, AirportActivity
 │  ├─ firebase.ts                        init (no-op without env vars → "demo mode")
 │  ├─ App.tsx                            HashRouter
 │  ├─ main.tsx
-│  └─ index.css                          Tailwind + a few @layer components
+│  └─ index.css                          Tailwind + warm @layer components
 ├─ firestore.rules
 ├─ firestore.indexes.json
 ├─ index.html
-├─ tailwind.config.js
+├─ tailwind.config.js                    pastel palette + animations + Quicksand display font
 ├─ postcss.config.js
 ├─ vite.config.ts                        base: '/gatemate/'
 ├─ tsconfig.json + tsconfig.app.json + tsconfig.node.json
 ├─ .env.example
+├─ next_steps.md                         live punch list — read this when planning the next session
 ├─ README.md
 └─ gatemate.md                           THIS FILE
 ```
@@ -304,10 +315,92 @@ When any of these change, update this section *and* the relevant code, in the sa
 
 ---
 
-## 14. How to resume work after a context reset
+## 14. Design system (cute, warm, cozy)
+
+The aesthetic is **"a quiet café at the airport"** — calm, safe, inviting, *not* aggressive like a dating app.
+
+### Tokens (Tailwind)
+- **Palette:** soft pastels — `peach.{50..600}` (warm), `cream`, `sand`, `dusk`, `skyish.{50..500}` (cool). Body backdrop is a layered radial gradient of those tones, fixed-attachment so it stays put while scrolling.
+- **Fonts:** body `Inter` (400–700), headings `Quicksand` (500–700) → applied via `font-display` utility on `<h1>/<h2>/<h3>` and selected callouts. Loaded together from Google Fonts.
+- **Shadows:** `shadow-soft` (warm peach falloff), `shadow-card` (warm grey falloff), `shadow-glow` (peach ring on hover).
+- **Radii:** everything 16–24px; `rounded-3xl` for cards, `rounded-blob` (32px) for hero blocks, `rounded-full` for buttons and chips.
+- **Animations:** `fade-in`, `fade-in-soft`, `float`, `sparkle`, `pulse-glow`, `drift-x`. Matches and steps animate in with staggered `animationDelay`.
+- **Hover scale:** cards use `hover:scale-[1.02]` + slight `-translate-y-0.5` via `card-hover`.
+- **Buttons:** `btn-primary` is a peach gradient pill with soft shadow → glow ring on hover; `btn-ghost` is a translucent pill with peach border.
+
+### Microcopy bank
+- "Stuck at an airport? Meet someone during your layover."
+- "Someone else is waiting too ✨"
+- "You might not be alone this layover ✨"
+- "Cosy hour · someone might land soon ☁️"
+- "Looking around the airport ✨"
+- "A little safety hug 🤍"
+
+If you change the palette or copy, keep it in this section so the next session knows the *why*.
+
+---
+
+## 15. AirportActivityMap (vibe map, not a GPS map)
+
+A deliberately **abstract** airport visualization that makes the place feel alive without exposing user locations.
+
+### Inputs (typed in `src/types/activity.ts`)
+```ts
+interface TerminalActivity {
+  id: string;
+  activityScore: number; // 0..1, derived from arrivals/departures/time-of-day/airport busyness
+  userCount: number;     // GateMate travelers in this terminal's window
+}
+interface AirportActivity {
+  airportCode: string;
+  airportName: string;
+  terminals: TerminalActivity[];
+  globalActivityScore: number;
+}
+```
+
+### Where the data comes from
+- Today: `src/utils/airportActivity.ts` — hand-picked fixtures for AMS/LHR/CDG/DXB plus a deterministic synthesizer fallback for any other airport (sin-wave seeded by code + current hour, so it changes through the day without flickering).
+- Tomorrow: replace `fetchActivity()` with a real API call (AeroDataBox, OpenSky, FlightRadar24) + a 5-min cache. The shape stays. Call sites don't change.
+
+### What we deliberately *do not* show
+- Exact user positions, real-time tracking, precise coordinates, real map tiles.
+
+### What we *do* show
+- Terminal-level **zones** rendered as pastel SVG blobs.
+- Glow pulses sized by `activityScore` (more activity → larger, faster, warmer pulses; SMIL animation).
+- Floating sparkle dots for atmosphere.
+- A central "hub" with the airport code.
+- Per-terminal tooltip on click: "Terminal B · High activity ✨ · 3 travelers in your time window · Best time: 15:00 – 17:00".
+
+### Visual mapping (`colors.ts`)
+- Score < 0.34 → soft sky (`#bae6fd` outer / `#7dd3fc` glow / `#075985` ink).
+- Score 0.34–0.67 → warm peach (`#fed7aa` outer / `#fdba74` glow / `#9a3412` ink).
+- Score ≥ 0.67 → glowing coral (`#fdba74` outer / `#fb923c` glow / `#9a3412` ink).
+
+### Empty-state philosophy
+- `userCount === 0` **never** renders an "empty" message inside the map — it shows "quiet" instead and the tooltip says "No travelers yet — try again in the next hour ✨".
+- The map *always* feels alive thanks to the activity-driven glow + sparkles, even when no GateMate users are around.
+
+### Component layout
+- `AirportActivityMap` — orchestrator (positions, sparkles, hub, lines).
+- `ActivityHeader` — sticky-feeling glass header above the SVG.
+- `TerminalZone` — one zone; outer `<g>` does positioning, inner `<g>` does CSS hover scale (so they don't fight).
+- `ActivityTooltip` — floating glass card overlay.
+
+### Tech constraints respected
+- **No** Mapbox / Leaflet / Google Maps / any external map lib.
+- Pure React + TS + Tailwind + inline SVG with SMIL (no canvas, no webgl).
+- Self-contained: drop `<AirportActivityMap airportCode="AMS" />` anywhere.
+
+---
+
+## 16. How to resume work after a context reset
 
 1. **Read this doc end-to-end.** It captures every non-obvious decision.
-2. Check `git log --oneline -20` for what's shipped recently.
-3. Read `firestore.rules` to refresh your mental model of what the DB enforces.
-4. Run `npm run dev` with a populated `.env` to interact with the app.
-5. The matching invariants live in `src/services/matching.ts` and the rules live in `firestore.rules`. Treat them as a pair — if you change one, change the other.
+2. **Read `next_steps.md`** to see what's still on the punch list.
+3. Check `git log --oneline -20` for what's shipped recently.
+4. Read `firestore.rules` to refresh your mental model of what the DB enforces.
+5. Run `npm run dev` with a populated `.env` to interact with the app.
+6. The matching invariants live in `src/services/matching.ts` and the rules live in `firestore.rules`. Treat them as a pair — if you change one, change the other.
+7. The activity map's data contract lives in `src/types/activity.ts`. The mock provider is `src/utils/airportActivity.ts` — replace `fetchActivity()` with the real API when you have one; the rest of the UI doesn't need to change.

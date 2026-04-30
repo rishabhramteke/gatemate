@@ -16,7 +16,7 @@ export default function AirportSelect({ value, onChange, id = 'airport' }: Props
       required
     >
       <option value="" disabled>
-        Pick your airport…
+        Where are you sipping coffee?
       </option>
       {AIRPORTS.map((a) => (
         <option key={a.code} value={a.code}>

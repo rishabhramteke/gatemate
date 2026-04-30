@@ -1,14 +1,14 @@
 export default function Footer() {
   return (
-    <footer className="border-t border-slate-100 bg-white/60 py-6 text-center text-sm text-slate-500">
+    <footer className="mt-12 border-t border-white/60 bg-white/40 py-6 text-center text-sm text-amber-900/70 backdrop-blur">
       <div className="mx-auto max-w-3xl px-4">
         <p>
-          ✈️ GateMate — meet someone during your layover. Built for travelers, not stalkers.
+          ✨ GateMate · little hello between flights
         </p>
         <p className="mt-1">
-          Always meet in public airport areas.{' '}
-          <a className="underline hover:text-sky-700" href="https://github.com/rishabhramteke/gatemate" target="_blank" rel="noreferrer">
-            Source on GitHub
+          Always meet in public airport areas ·{' '}
+          <a className="underline decoration-peach-300 underline-offset-2 hover:text-peach-600" href="https://github.com/rishabhramteke/gatemate" target="_blank" rel="noreferrer">
+            source
           </a>
         </p>
       </div>

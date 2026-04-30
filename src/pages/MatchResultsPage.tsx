@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import MatchCard from '../components/MatchCard';
+import { AirportActivityMap } from '../components/airportMap';
 import { airportLabel } from '../utils/airports';
 import { formatRange } from '../utils/time';
 import { listActiveByAirport, firebaseReady } from '../services/profiles';
@@ -70,9 +71,9 @@ export default function MatchResultsPage() {
 
   if (!viewer) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-10 text-center">
-        <h1 className="text-2xl font-bold">Missing layover info</h1>
-        <p className="mt-2 text-slate-600">Start over by filling out the signup form.</p>
+      <div className="mx-auto max-w-2xl px-4 py-10 text-center animate-fade-in">
+        <h1 className="font-display text-2xl font-bold text-amber-900">Missing layover info</h1>
+        <p className="mt-2 text-amber-900/70">Start over by filling out the signup form.</p>
         <Link to="/signup" className="btn-primary mt-6">Drop your layover</Link>
       </div>
     );
@@ -80,25 +81,36 @@ export default function MatchResultsPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <header className="mb-6">
-        {name && <p className="text-sm font-medium text-sky-700">Hi {name} 👋</p>}
-        <h1 className="mt-1 text-3xl font-extrabold text-slate-900">
-          {loading ? 'Looking for travelers…' : `${matches.length} traveler${matches.length === 1 ? '' : 's'} overlap with your layover`}
+      <header className="mb-6 animate-fade-in">
+        {name && <p className="text-sm font-semibold text-peach-600">Hi {name} 👋</p>}
+        <h1 className="mt-1 font-display text-3xl font-bold text-amber-900">
+          {loading
+            ? 'Looking around the airport ✨'
+            : matches.length === 0
+              ? 'Quiet skies for now…'
+              : `${matches.length} traveler${matches.length === 1 ? '' : 's'} overlap with your layover`}
         </h1>
-        <p className="mt-1 text-slate-600">
+        <p className="mt-1 text-amber-900/75">
           {airportLabel(viewer.airportCode)} · {formatRange(viewer.layoverStart, viewer.layoverEnd)}
         </p>
+        {!loading && matches.length > 0 && (
+          <p className="mt-1 text-sm text-peach-600">Someone else is waiting too ✨</p>
+        )}
       </header>
 
+      <div className="mb-6">
+        <AirportActivityMap airportCode={viewer.airportCode} />
+      </div>
+
       {error && (
-        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+        <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
           {error}
         </div>
       )}
 
       {!firebaseReady() && (
-        <div className="mb-4 rounded-2xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">
-          Demo mode — no live database connected. Configure Firebase to see real travelers here.
+        <div className="mb-4 rounded-3xl border border-skyish-200 bg-skyish-50/80 p-3 text-sm text-sky-800 shadow-soft">
+          ✨ Demo mode — no live database connected. Configure Firebase to see real travelers here.
         </div>
       )}
 
@@ -106,9 +118,9 @@ export default function MatchResultsPage() {
         <div className="grid gap-3 sm:grid-cols-2">
           {[0, 1, 2].map((i) => (
             <div key={i} className="card animate-pulse">
-              <div className="h-4 w-1/2 rounded bg-slate-100" />
-              <div className="mt-3 h-3 w-3/4 rounded bg-slate-100" />
-              <div className="mt-2 h-3 w-2/3 rounded bg-slate-100" />
+              <div className="h-4 w-1/2 rounded bg-peach-100" />
+              <div className="mt-3 h-3 w-3/4 rounded bg-peach-100" />
+              <div className="mt-2 h-3 w-2/3 rounded bg-peach-100" />
             </div>
           ))}
         </div>
@@ -116,8 +128,8 @@ export default function MatchResultsPage() {
         <EmptyState airport={viewer.airportCode} />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
-          {matches.map((m) => (
-            <MatchCard key={m.profile.id} match={m} />
+          {matches.map((m, i) => (
+            <MatchCard key={m.profile.id} match={m} delayMs={i * 80} />
           ))}
         </div>
       )}
@@ -130,8 +142,10 @@ export default function MatchResultsPage() {
 }
 
 function EmptyState({ airport }: { airport: string }) {
-  const shareUrl = typeof window !== 'undefined' ? window.location.origin + window.location.pathname : '';
-  const shareText = `Stuck at ${airport}? Drop your Instagram on GateMate and meet someone during your layover ✈️`;
+  const shareUrl =
+    typeof window !== 'undefined' ? window.location.origin + window.location.pathname : '';
+  const shareText = `Stuck at ${airport}? Drop your Instagram on GateMate and meet someone during your layover ✨`;
+
   const handleShare = async () => {
     if (typeof navigator !== 'undefined' && 'share' in navigator) {
       try {
@@ -148,13 +162,14 @@ function EmptyState({ airport }: { airport: string }) {
   };
 
   return (
-    <div className="card text-center">
+    <div className="card text-center animate-fade-in">
       <p className="text-3xl">🛬</p>
-      <h2 className="mt-2 text-xl font-bold text-slate-900">Looks quiet during your layover.</h2>
-      <p className="mt-1 text-slate-600">
-        Leave your Instagram and we'll show you to anyone who lands while you're still here.
+      <h2 className="mt-2 font-display text-xl font-bold text-amber-900">Looks quiet during your layover.</h2>
+      <p className="mt-1 text-amber-900/75">
+        You might not be alone this layover ✨ — leave your Instagram and we'll show you to anyone who
+        lands while you're still here.
       </p>
-      <p className="mt-3 text-sm text-slate-500">
+      <p className="mt-3 text-sm text-amber-900/65">
         Share this with another traveler at {airport} to kick things off.
       </p>
       <button onClick={handleShare} className="btn-primary mt-5">

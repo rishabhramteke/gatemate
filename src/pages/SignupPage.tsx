@@ -14,8 +14,8 @@ export default function SignupPage() {
 
   const defaults = useMemo(() => {
     const now = new Date();
-    const start = new Date(now.getTime() + 60 * 60 * 1000); // +1h
-    const end = new Date(now.getTime() + 5 * 60 * 60 * 1000); // +5h
+    const start = new Date(now.getTime() + 60 * 60 * 1000);
+    const end = new Date(now.getTime() + 5 * 60 * 60 * 1000);
     return { start: toDatetimeLocal(start), end: toDatetimeLocal(end) };
   }, []);
 
@@ -111,17 +111,18 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8">
+    <div className="mx-auto max-w-2xl px-4 py-8 animate-fade-in">
       <header className="mb-6">
-        <h1 className="text-3xl font-extrabold text-slate-900">Drop your layover ✈️</h1>
-        <p className="mt-1 text-slate-600">
-          30 seconds. No login. Your profile auto-expires when your layover ends.
+        <span className="pill">step 1 of 1 · cosy & quick</span>
+        <h1 className="mt-3 font-display text-3xl font-bold text-amber-900">Drop your layover ✈️</h1>
+        <p className="mt-1 text-amber-900/75">
+          30 seconds. No login. Your profile gently disappears when your layover ends.
         </p>
       </header>
 
       {!firebaseReady() && (
-        <div className="mb-4 rounded-2xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">
-          Demo mode — Firebase isn't configured, so submissions stay local. Set the{' '}
+        <div className="mb-4 rounded-3xl border border-skyish-200 bg-skyish-50/80 p-3 text-sm text-sky-800 shadow-soft">
+          ✨ Demo mode — Firebase isn't configured, so submissions stay local. Set the{' '}
           <code className="rounded bg-white px-1">VITE_FIREBASE_*</code> env vars to enable matching.
         </div>
       )}
@@ -220,7 +221,7 @@ export default function SignupPage() {
           <div>
             <label className="label" htmlFor="ig">Instagram handle</label>
             <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">@</span>
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-peach-400">@</span>
               <input
                 id="ig"
                 className="input pl-7"
@@ -252,10 +253,10 @@ export default function SignupPage() {
 
         <PrivacyNotice />
 
-        <label className="flex items-start gap-2 text-sm text-slate-700">
+        <label className="flex items-start gap-2 text-sm text-amber-900/85">
           <input
             type="checkbox"
-            className="mt-1 h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+            className="mt-1 h-4 w-4 rounded border-peach-300 text-peach-500 focus:ring-peach-300"
             checked={consent}
             onChange={(e) => setConsent(e.target.checked)}
           />
@@ -266,7 +267,7 @@ export default function SignupPage() {
         </label>
 
         {error && (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
             {error}
           </div>
         )}
