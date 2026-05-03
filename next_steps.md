@@ -2,6 +2,8 @@
 
 > Running checklist of work that's *not yet done*. Cross items off as you go. New ideas land at the bottom of "Later".
 
+> **⏸ PAUSED on 2026-05-03.** When you're ready to resume, open **[`firebase_setup.md`](./firebase_setup.md)** and start at Step 1. That file is the click-by-click expansion of "Make matching actually work" below.
+
 ---
 
 ## 🕶 Creator anonymity migration (do this first if anonymity matters)
